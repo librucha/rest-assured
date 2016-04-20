@@ -625,4 +625,33 @@ public class XmlPathTest {
         // Then
         assertThat(node.<String>getPath("Body.importProjectResponse.ProjectImportResultCode.code"), equalTo("1"));
     }
+
+    @Test
+    public void doesntNeedToEscapeListsWithHyphenWithoutBrackets() throws Exception {
+        // Given
+        String xml = "<root><some-list>one</some-list><some-list>two</some-list></root>";
+
+        // When
+        XmlPath xmlPath = XmlPath.from(xml);
+
+        // Then
+        assertThat(xmlPath.getString("root.some-list[0]"), equalTo("one"));
+    }
+
+    @Test public void
+    trying_to_get_an_attribute_that_doesnt_exists_returns_null() {
+        // Given
+        String xml = "  <root>" //
+                    + "   <item type=\"normal\">item_1_content</item>"//
+                    + "   <item type=\"special\">item_1_content</item>"//
+                    + "   <item type=\"\">item_1_content</item>"//
+                    + "   <item>item_2_content</item>"//
+                    + " </root>";
+
+        // When
+        XmlPath xmlPath = new XmlPath(xml).setRoot("root");
+
+        // Then
+        assertThat(xmlPath.getString("item[3].@type"), nullValue());
+    }
 }

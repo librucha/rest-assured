@@ -16,17 +16,18 @@
 
 package com.jayway.restassured.module.mockmvc.internal;
 
+import com.jayway.restassured.RestAssured;
 import com.jayway.restassured.authentication.NoAuthScheme;
 import com.jayway.restassured.builder.MultiPartSpecBuilder;
 import com.jayway.restassured.config.EncoderConfig;
 import com.jayway.restassured.filter.Filter;
 import com.jayway.restassured.filter.log.RequestLoggingFilter;
+import com.jayway.restassured.http.Method;
 import com.jayway.restassured.internal.RequestSpecificationImpl;
 import com.jayway.restassured.internal.ResponseParserRegistrar;
 import com.jayway.restassured.internal.ResponseSpecificationImpl;
 import com.jayway.restassured.internal.filter.FilterContextImpl;
 import com.jayway.restassured.internal.http.CharsetExtractor;
-import com.jayway.restassured.internal.http.Method;
 import com.jayway.restassured.internal.log.LogRepository;
 import com.jayway.restassured.internal.support.PathSupport;
 import com.jayway.restassured.internal.util.SafeExceptionRethrower;
@@ -64,6 +65,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import static com.jayway.restassured.filter.time.TimingFilter.RESPONSE_TIME_MILLISECONDS;
 import static com.jayway.restassured.internal.assertion.AssertParameter.notNull;
 import static com.jayway.restassured.internal.support.PathSupport.mergeAndRemoveDoubleSlash;
 import static com.jayway.restassured.module.mockmvc.internal.ConfigConverter.convertToRestAssuredConfig;
@@ -99,18 +101,19 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
     private final Object authentication;
     private final LogRepository logRepository;
     private final boolean isAsyncRequest;
+    private final Map<String, Object> sessionAttributes ;
 
     MockMvcRequestSenderImpl(MockMvc mockMvc, Map<String, Object> params, Map<String, Object> queryParams, Map<String, Object> formParams, Map<String, Object> attributes,
-                             RestAssuredMockMvcConfig config, Object requestBody, Headers headers, Cookies cookies,
+                             RestAssuredMockMvcConfig config, Object requestBody, Headers headers, Cookies cookies,Map<String, Object> sessionAttributes,
                              List<MockMvcMultiPart> multiParts, RequestLoggingFilter requestLoggingFilter, List<ResultHandler> resultHandlers,
                              List<RequestPostProcessor> requestPostProcessors, MockHttpServletRequestBuilderInterceptor interceptor, String basePath, ResponseSpecification responseSpecification,
-                             Object authentication, LogRepository logRepository) {
-        this(mockMvc, params, queryParams, formParams, attributes, config, requestBody, headers, cookies, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
+                             Object authentication, LogRepository logRepository ) {
+        this(mockMvc, params, queryParams, formParams, attributes, config, requestBody, headers, cookies,sessionAttributes, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
                 basePath, responseSpecification, authentication, logRepository, false);
     }
 
     private MockMvcRequestSenderImpl(MockMvc mockMvc, Map<String, Object> params, Map<String, Object> queryParams, Map<String, Object> formParams, Map<String, Object> attributes,
-                                     RestAssuredMockMvcConfig config, Object requestBody, Headers headers, Cookies cookies,
+                                     RestAssuredMockMvcConfig config, Object requestBody, Headers headers, Cookies cookies,Map<String, Object> sessionAttributes,
                                      List<MockMvcMultiPart> multiParts, RequestLoggingFilter requestLoggingFilter, List<ResultHandler> resultHandlers,
                                      List<RequestPostProcessor> requestPostProcessors, MockHttpServletRequestBuilderInterceptor interceptor, String basePath, ResponseSpecification responseSpecification,
                                      Object authentication, LogRepository logRepository, boolean isAsyncRequest) {
@@ -123,6 +126,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
         this.requestBody = requestBody;
         this.headers = headers;
         this.cookies = cookies;
+        this.sessionAttributes = sessionAttributes;
         this.multiParts = multiParts;
         this.requestLoggingFilter = requestLoggingFilter;
         this.resultHandlers = resultHandlers;
@@ -148,6 +152,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
         return new Headers(headers);
     }
 
+    @SuppressWarnings("unchecked")
     private MockMvcResponse performRequest(MockHttpServletRequestBuilder requestBuilder) {
         MockHttpServletResponse response;
 
@@ -167,7 +172,9 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
 
         MockMvcRestAssuredResponseImpl restAssuredResponse;
         try {
+            final long start = System.currentTimeMillis();
             ResultActions perform = mockMvc.perform(requestBuilder);
+            final long responseTime = System.currentTimeMillis() - start;
             if (!resultHandlers.isEmpty()) {
                 for (ResultHandler resultHandler : resultHandlers) {
                     perform.andDo(resultHandler);
@@ -184,6 +191,9 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
             restAssuredResponse.setResponseHeaders(assembleHeaders(response));
             restAssuredResponse.setRpr(getRpr());
             restAssuredResponse.setStatusLine(assembleStatusLine(response, mvcResult.getResolvedException()));
+            restAssuredResponse.setFilterContextProperties(new HashMap() {{
+                put(RESPONSE_TIME_MILLISECONDS, responseTime);
+            }});
 
             if (responseSpecification != null) {
                 responseSpecification.validate(ResponseConverter.toStandardResponse(restAssuredResponse));
@@ -347,6 +357,9 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
             }
         }
 
+        if (!sessionAttributes.isEmpty()) {
+        	request.sessionAttrs(sessionAttributes);
+        }
 
         if (!multiParts.isEmpty()) {
             MockMultipartHttpServletRequestBuilder multiPartRequest = (MockMultipartHttpServletRequestBuilder) request;
@@ -391,7 +404,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
             }
         }
 
-        logRequestIfApplicable(method, uri, path);
+        logRequestIfApplicable(method, uri, path, pathParams);
 
         return performRequest(request);
     }
@@ -468,13 +481,16 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
         return request instanceof MockMultipartHttpServletRequestBuilder;
     }
 
-    private void logRequestIfApplicable(HttpMethod method, String uri, String originalPath) {
+    private void logRequestIfApplicable(HttpMethod method, String uri, String originalPath, Object[] unnamedPathParams) {
         if (requestLoggingFilter == null) {
             return;
         }
 
-        final RequestSpecificationImpl reqSpec = new RequestSpecificationImpl("", 8080, uri, new NoAuthScheme(), Collections.<Filter>emptyList(),
+        final RequestSpecificationImpl reqSpec = new RequestSpecificationImpl("http://localhost", RestAssured.UNDEFINED_PORT, "", new NoAuthScheme(), Collections.<Filter>emptyList(),
                 null, true, convertToRestAssuredConfig(config), logRepository, null);
+        reqSpec.setMethod(method.toString());
+        reqSpec.path(uri);
+        reqSpec.buildUnnamedPathParameterTuples(unnamedPathParams);
         if (params != null) {
             new ParamLogger(params) {
                 protected void logParam(String paramName, Object paramValue) {
@@ -544,7 +560,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
 
         String uriPath = PathSupport.getPath(uri);
         String originalUriPath = PathSupport.getPath(originalPath);
-        requestLoggingFilter.filter(reqSpec, null, new FilterContextImpl(uri, originalUriPath, uriPath, uri, uri, new Object[0], Method.valueOf(method.toString()), null, Collections.<Filter>emptyList().iterator()));
+        requestLoggingFilter.filter(reqSpec, null, new FilterContextImpl(uri, originalUriPath, uriPath, uri, uri, new Object[0], Method.valueOf(method.toString()), null, Collections.<Filter>emptyList().iterator(), new HashMap<String, Object>()));
     }
 
     private String fileToString(File file, String charset) {
@@ -718,7 +734,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
     public MockMvcRequestAsyncConfigurer timeout(long duration, TimeUnit timeUnit) {
         RestAssuredMockMvcConfig newConfig = config.asyncConfig(new AsyncConfig(duration, timeUnit));
         return new MockMvcRequestSenderImpl(mockMvc, params, queryParams, formParams,
-                attributes, newConfig, requestBody, headers, cookies, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
+                attributes, newConfig, requestBody, headers, cookies,sessionAttributes, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
                 basePath, responseSpecification, authentication, logRepository, isAsyncRequest);
     }
 
@@ -732,7 +748,7 @@ class MockMvcRequestSenderImpl implements MockMvcRequestSender, MockMvcRequestAs
 
     public MockMvcRequestAsyncConfigurer async() {
         return new MockMvcRequestSenderImpl(mockMvc, params, queryParams, formParams,
-                attributes, config, requestBody, headers, cookies, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
+                attributes, config, requestBody, headers, cookies,sessionAttributes, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor,
                 basePath, responseSpecification, authentication, logRepository, true);
     }
 

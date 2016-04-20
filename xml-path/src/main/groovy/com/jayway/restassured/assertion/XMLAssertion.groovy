@@ -47,7 +47,7 @@ class XMLAssertion implements Assertion {
         if (rootEvaluation) {
             key = key?.startsWith(DOT) ? key.substring(1) : key
         }
-        key = escapePath(key, minus(), attributeGetter(), doubleStar(), colon(), classKeyword())
+        key = escapePath(key, hyphen(), attributeGetter(), doubleStar(), colon(), classKeyword())
         def indexOfDot = key.indexOf(".")
         def evaluationString
         def isRootOnly = rootEvaluation ? (indexOfDot < 0) : false
@@ -211,7 +211,13 @@ class XMLAssertion implements Assertion {
         }
 
         if (isAttributes) {
-            def temp = []
+            def temp
+            if(nodes.isEmpty()) {
+                temp = null;
+            } else {
+                temp = []
+            }
+
             nodes.each {
                 CharArrayWriter caw = new CharArrayWriter();
                 it.writeTo(caw);

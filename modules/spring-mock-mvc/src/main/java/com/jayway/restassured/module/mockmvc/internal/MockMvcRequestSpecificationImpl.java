@@ -109,6 +109,9 @@ public class MockMvcRequestSpecificationImpl implements MockMvcRequestSpecificat
 
     private AsyncConfig asyncConfig;
 
+    private final Map<String, Object> sessionAttributes = new LinkedHashMap<String, Object>();
+
+
     public MockMvcRequestSpecificationImpl(MockMvcFactory mockMvcFactory, RestAssuredMockMvcConfig config, List<ResultHandler> resultHandlers,
                                            List<RequestPostProcessor> requestPostProcessors, String basePath,
                                            MockMvcRequestSpecification requestSpecification, ResponseSpecification responseSpecification,
@@ -715,7 +718,7 @@ public class MockMvcRequestSpecificationImpl implements MockMvcRequestSpecificat
         }
         MockMvc mockMvc = mockMvcFactory.build(cfg.getMockMvcConfig());
         return new MockMvcRequestSenderImpl(mockMvc, params, queryParams, formParams, attributes, cfg, requestBody,
-                requestHeaders, cookies, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor, basePath, responseSpecification, authentication,
+                requestHeaders, cookies, sessionAttributes, multiParts, requestLoggingFilter, resultHandlers, requestPostProcessors, interceptor, basePath, responseSpecification, authentication,
                 logRepository);
     }
 
@@ -1026,5 +1029,28 @@ public class MockMvcRequestSpecificationImpl implements MockMvcRequestSpecificat
 
     public AsyncConfig getAsyncConfig() {
         return asyncConfig;
+    }
+
+    /**
+     * Set a session attribute.
+     *
+     * @param name  the session attribute name
+     * @param value the session attribute value
+     */
+    public MockMvcRequestSpecification sessionAttr(String name, Object value) {
+        notNull(name, "Session attribute name");
+        parameterUpdater.updateZeroToManyParameters(convert(cfg.getParamConfig().sessionAttributesUpdateStrategy()), sessionAttributes, name, value);
+        return this;
+    }
+
+    /**
+     * Set session attributes.
+     *
+     * @param sessionAttributes the session attributes
+     */
+    public MockMvcRequestSpecification sessionAttrs(Map<String, Object> sessionAttributes) {
+        notNull(sessionAttributes, "sessionAttributes");
+        parameterUpdater.updateParameters(convert(cfg.getParamConfig().sessionAttributesUpdateStrategy()), sessionAttributes, this.sessionAttributes);
+        return this;
     }
 }

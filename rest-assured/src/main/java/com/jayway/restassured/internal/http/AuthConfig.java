@@ -16,8 +16,14 @@
 
 package com.jayway.restassured.internal.http;
 
+import com.github.scribejava.core.builder.api.DefaultApi10a;
+import com.github.scribejava.core.builder.api.DefaultApi20;
+import com.github.scribejava.core.model.*;
+import com.github.scribejava.core.oauth.OAuth10aService;
+import com.github.scribejava.core.oauth.OAuth20Service;
+import com.github.scribejava.core.oauth.OAuthService;
 import com.jayway.restassured.authentication.OAuthSignature;
-import com.jayway.restassured.internal.KeystoreSpecImpl;
+import com.jayway.restassured.internal.TrustAndKeystoreSpecImpl;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -29,12 +35,6 @@ import org.apache.http.conn.ssl.X509HostnameVerifier;
 import org.apache.http.impl.client.RequestWrapper;
 import org.apache.http.protocol.ExecutionContext;
 import org.apache.http.protocol.HttpContext;
-import org.scribe.builder.api.DefaultApi10a;
-import org.scribe.builder.api.DefaultApi20;
-import org.scribe.model.*;
-import org.scribe.oauth.OAuth10aServiceImpl;
-import org.scribe.oauth.OAuth20ServiceImpl;
-import org.scribe.oauth.OAuthService;
 
 import java.io.IOException;
 import java.net.URI;
@@ -52,9 +52,11 @@ public class AuthConfig {
     private static final int UNDEFINED_PORT = -1;
     private static final int DEFAULT_HTTPS_PORT = 443;
     protected HTTPBuilder builder;
+    private final com.jayway.restassured.config.OAuthConfig raOAuthConfig;
 
-    public AuthConfig(HTTPBuilder builder) {
+    public AuthConfig(HTTPBuilder builder, com.jayway.restassured.config.OAuthConfig restAssuredOAuthConfig) {
         this.builder = builder;
+        this.raOAuthConfig = restAssuredOAuthConfig;
     }
 
     /**
@@ -91,28 +93,38 @@ public class AuthConfig {
      * Sets a certificate to be used for SSL authentication. See {@link Class#getResource(String)} for how to get a URL from a resource
      * on the classpath.
      *
-     * @param certURL              URL to a JKS keystore where the certificate is stored.
-     * @param password             password to decrypt the keystore
-     * @param certType             The certificate type
-     * @param port                 The SSL port
-     * @param trustStore           The trust store
-     * @param x509HostnameVerifier The X509HostnameVerifier to use
-     * @param sslSocketFactory     The SSLSocketFactory to use
+     * @param keyStorePath               URL to a JKS keystore where the certificate is stored.
+     * @param keyStorePassword           password to decrypt the keystore
+     * @param keyStoreType               The certificate type
+     * @param keyStore                   The key store
+     * @param trustStorePath             URL to a trust store
+     * @param trustStorePassword         password to decrypt the trust store
+     * @param trustStoreType             The certificate type
+     * @param trustStore                 The trust store
+     * @param port                       The SSL port
+     * @param hostnameVerifier           The X509HostnameVerifier to use
+     * @param sslConnectionSocketFactory The SSLConnectionSocketFactory to use
      */
-    public void certificate(String certURL, String password, String certType, int port, KeyStore trustStore, X509HostnameVerifier x509HostnameVerifier,
-                            SSLSocketFactory sslSocketFactory) {
-        KeystoreSpecImpl keystoreSpec = new KeystoreSpecImpl();
+    public void certificate(Object keyStorePath, String keyStorePassword, String keyStoreType, KeyStore keyStore,
+                            Object trustStorePath, String trustStorePassword, String trustStoreType, KeyStore trustStore,
+                            int port, X509HostnameVerifier hostnameVerifier, SSLSocketFactory sslConnectionSocketFactory) {
+        TrustAndKeystoreSpecImpl spec = new TrustAndKeystoreSpecImpl();
         URI uri = ((URIBuilder) builder.getUri()).toURI();
         if (uri == null) throw new IllegalStateException("a default URI must be set");
-        keystoreSpec.setKeyStoreType(certType);
-        keystoreSpec.setPassword(password);
-        keystoreSpec.setPath(certURL);
-        keystoreSpec.setTrustStore(trustStore);
-        keystoreSpec.setPort(port);
-        keystoreSpec.setX509HostnameVerifier(x509HostnameVerifier);
-        keystoreSpec.setFactory(sslSocketFactory);
+        spec.setKeyStoreType(keyStoreType);
+        spec.setKeyStorePassword(keyStorePassword);
+        spec.setKeyStorePath(keyStorePath);
+        spec.setKeyStore(keyStore);
+        spec.setTrustStoreType(trustStoreType);
+        spec.setTrustStorePassword(trustStorePassword);
+        spec.setTrustStorePath(trustStorePath);
+        spec.setTrustStore(trustStore);
+        spec.setPort(port);
+        spec.setX509HostnameVerifier(hostnameVerifier);
+        spec.setFactory(sslConnectionSocketFactory);
+
         int portSpecifiedInUri = uri.getPort();
-        keystoreSpec.apply(builder, portSpecifiedInUri == UNDEFINED_PORT ? DEFAULT_HTTPS_PORT : portSpecifiedInUri);
+        spec.apply(builder, portSpecifiedInUri == UNDEFINED_PORT ? DEFAULT_HTTPS_PORT : portSpecifiedInUri);
     }
 
     /**
@@ -124,7 +136,7 @@ public class AuthConfig {
      * <p>This assumes you've already generated an <code>accessToken</code> and
      * <code>secretToken</code> for the site you're targeting.  For More information
      * on how to achieve this, see the
-     * <a href='https://github.com/fernandezpablo85/scribe-java/wiki/Getting-Started'>Scribe documentation</a>.</p>
+     * <a href='https://github.com/scribejava/scribejava/wiki/Getting-Started'>Scribe documentation</a>.</p>
      *
      * @param consumerKey    <code>null</code> if you want to <strong>unset</strong>
      *                       OAuth handling and stop signing requests.
@@ -138,9 +150,11 @@ public class AuthConfig {
         this.builder.client.removeRequestInterceptorByClass(OAuthSigner.class);
         if (consumerKey != null) {
             this.builder.client.addRequestInterceptor(new OAuthSigner(
-                    consumerKey, consumerSecret, accessToken, secretToken, OAuthSignature.HEADER));
+                    consumerKey, consumerSecret, accessToken, secretToken, OAuthSignature.HEADER,
+                    raOAuthConfig.shouldAddEmptyAccessOAuthTokenToBaseString()));
         }
     }
+
 
     public void oauth(String consumerKey, String consumerSecret,
                       String accessToken, String secretToken, OAuthSignature signature) {
@@ -148,7 +162,7 @@ public class AuthConfig {
         if (consumerKey != null) {
             this.builder.client.addRequestInterceptor(new OAuthSigner(
                     consumerKey, consumerSecret, accessToken, secretToken,
-                    signature));
+                    signature, raOAuthConfig.shouldAddEmptyAccessOAuthTokenToBaseString()));
         }
     }
 
@@ -162,7 +176,7 @@ public class AuthConfig {
      * <p>This assumes you've already generated an <code>accessToken</code>
      * for the site you're targeting.  For More information
      * on how to achieve this, see the
-     * <a href='https://github.com/fernandezpablo85/scribe-java/wiki/Getting-Started'>Scribe documentation</a>.</p>
+     * <a href='https://github.com/scribejava/scribejava/wiki/Getting-Started'>Scribe documentation</a>.</p>
      *
      * @param accessToken
      * @since 0.5.1
@@ -184,22 +198,24 @@ public class AuthConfig {
     static class OAuthSigner implements HttpRequestInterceptor {
         protected OAuthConfig oauthConfig;
         protected Token token;
-        protected OAuthService service;
+        protected OAuth10aService service;
         protected SignatureType type = SignatureType.Header;
         protected OAuthSignature signature;
         protected boolean isOAuth1 = true;
+        protected boolean addEmptyTokenToBaseString;
 
         public OAuthSigner(String consumerKey, String consumerSecret,
-                           String accessToken, String secretToken, OAuthSignature signature) {
+                           String accessToken, String secretToken, OAuthSignature signature, Boolean addEmptyTokenToBaseString) {
 
             this.oauthConfig = new OAuthConfig(consumerKey, consumerSecret,
-                    null, getOAuthSigntureType(signature), null, null);
-            this.token = new Token(accessToken, secretToken);
+                    null, getOAuthSigntureType(signature), null, null, null, null, null, null, null);
+            this.token = new OAuth1AccessToken(accessToken, secretToken);
             this.signature = signature;
+            this.addEmptyTokenToBaseString = addEmptyTokenToBaseString;
         }
 
         public OAuthSigner(String accessToken, OAuthSignature signature) {
-            this.token = new Token(accessToken, "");
+            this.token = new OAuth2AccessToken(accessToken, "");
             this.signature = signature;
             isOAuth1 = false;
         }
@@ -210,9 +226,10 @@ public class AuthConfig {
                 final URI requestURI = new URI(host.toURI()).resolve(request.getRequestLine().getUri());
 
                 Verb verb = Verb.valueOf(request.getRequestLine().getMethod().toUpperCase());
-                OAuthRequest oauthRequest = new OAuthRequest(verb, requestURI.toString());
-                this.service = getOauthService(isOAuth1);
-                service.signRequest(token, oauthRequest);
+                OAuthRequest oauthRequest = new OAuthRequest(verb, requestURI.toString(), null);
+                this.service = (OAuth10aService) getOauthService(isOAuth1, addEmptyTokenToBaseString);
+                service.signRequest((OAuth1AccessToken) token, oauthRequest);
+
                 if (signature == OAuthSignature.HEADER) {
                     //If signature is to be added as header
                     for (Map.Entry<String, String> entry : oauthRequest.getHeaders().entrySet()) {
@@ -229,7 +246,7 @@ public class AuthConfig {
             }
         }
 
-        private OAuthService getOauthService(boolean oauth1) {
+        private OAuthService getOauthService(boolean oauth1, final boolean useEmptyOAuthToken) {
             OAuthService service;
             if (oauth1) {
                 DefaultApi10a api = new DefaultApi10a() {
@@ -239,7 +256,7 @@ public class AuthConfig {
                     }
 
                     @Override
-                    public String getAuthorizationUrl(Token arg0) {
+                    public String getAuthorizationUrl(OAuth1RequestToken arg0) {
                         return null;
                     }
 
@@ -247,8 +264,13 @@ public class AuthConfig {
                     public String getAccessTokenEndpoint() {
                         return null;
                     }
+
+                    @Override
+                    public boolean isEmptyOAuthTokenParamIsRequired() {
+                        return useEmptyOAuthToken;
+                    }
                 };
-                service = new OAuth10aServiceImpl(api, oauthConfig);
+                service = new OAuth10aService(api, oauthConfig);
             } else {
                 DefaultApi20 api = new DefaultApi20() {
                     @Override
@@ -261,7 +283,7 @@ public class AuthConfig {
                         return null;
                     }
                 };
-                service = new OAuth20ServiceImpl(api, oauthConfig);
+                service = new OAuth20Service(api, oauthConfig);
             }
             return service;
         }

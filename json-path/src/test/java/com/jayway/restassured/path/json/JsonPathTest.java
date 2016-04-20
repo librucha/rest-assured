@@ -347,6 +347,14 @@ public class JsonPathTest {
     }
 
     @Test
+    public void getObjectWorksWhenPathPointsToAJsonObject2() throws Exception {
+        final List<Book> books = from(JSON).getList("store.book", Book.class);
+
+        assertThat(books, hasSize(4));
+        assertThat(books.get(0).getAuthor(), equalTo("Nigel Rees"));
+    }
+
+    @Test
     public void getObjectAsMapWorksWhenPathPointsToAJsonObject() throws Exception {
         final Map<String, String> book = from(JSON).getObject("store.book[2]", Map.class);
 
@@ -735,5 +743,29 @@ public class JsonPathTest {
         final String prettyJson = with("{\"some\":\"ŘÍŠŽŤČÝŮŇÚĚĎÁÉÓ\"}").prettyPrint();
 
         assertThat(prettyJson, equalTo("{\n    \"some\": \"ŘÍŠŽŤČÝŮŇÚĚĎÁÉÓ\"\n}"));
+    }
+
+    @Test public void
+    need_to_escape_lists_with_hyphen_and_brackets() {
+        // Given
+        String json = "{ \"some-list[0]\" : [ \"one\", \"two\" ] }";
+
+        // When
+        JsonPath jsonPath = JsonPath.from(json);
+
+        // Then
+        assertThat(jsonPath.getString("'some-list[0]'[0]"), equalTo("one"));
+    }
+
+    @Test public void
+    doesnt_need_to_escape_lists_with_hyphen_without_brackets() {
+        // Given
+        String json = "{ \"some-list\" : [ \"one\", \"two\" ] }";
+
+        // When
+        JsonPath jsonPath = JsonPath.from(json);
+
+        // Then
+        assertThat(jsonPath.getString("some-list[0]"), equalTo("one"));
     }
 }

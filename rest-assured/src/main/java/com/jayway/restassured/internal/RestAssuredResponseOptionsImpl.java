@@ -29,6 +29,7 @@ import com.jayway.restassured.response.*;
 
 import java.io.InputStream;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * We delegate to the groovy impl here because the Groovy impl messes up generics (see e.g. http://stackoverflow.com/questions/11395527/groovy-generics-failure) and thus we cannot
@@ -66,6 +67,10 @@ public class RestAssuredResponseOptionsImpl<R extends ResponseOptions<R>> implem
 
     public void setSessionIdName(Object sessionIdName) {
         this.groovyResponse.setSessionIdName(sessionIdName);
+    }
+
+    public void setFilterContextProperties(Map filterContextProperties) {
+        this.groovyResponse.setFilterContextProperties(filterContextProperties);
     }
 
     public void setConnectionManager(Object connectionManager) {
@@ -206,6 +211,10 @@ public class RestAssuredResponseOptionsImpl<R extends ResponseOptions<R>> implem
         return groovyResponse.asInputStream();
     }
 
+    public boolean isInputStream() {
+        return groovyResponse.isInputStream();
+    }
+
     public String print() {
         return groovyResponse.print();
     }
@@ -316,7 +325,27 @@ public class RestAssuredResponseOptionsImpl<R extends ResponseOptions<R>> implem
         return groovyResponse;
     }
 
+    public Map getFilterContextProperties() {
+        return this.groovyResponse.getFilterContextProperties();
+    }
+
     public void setGroovyResponse(RestAssuredResponseOptionsGroovyImpl groovyResponse) {
         this.groovyResponse = groovyResponse;
+    }
+
+    public long time() {
+        return groovyResponse.time();
+    }
+
+    public long timeIn(TimeUnit timeUnit) {
+        return groovyResponse.timeIn(timeUnit);
+    }
+
+    public long getTime() {
+        return groovyResponse.time();
+    }
+
+    public long getTimeIn(TimeUnit timeUnit) {
+        return groovyResponse.timeIn(timeUnit);
     }
 }

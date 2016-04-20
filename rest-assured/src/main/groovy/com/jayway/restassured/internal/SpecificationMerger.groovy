@@ -36,6 +36,7 @@ class SpecificationMerger {
    *     <li>Status code</li>
    *     <li>Status line</li>
    *     <li>Fallback parser</li>
+   *     <li>Expected response time</li>
    * </ul>
    * The following settings are merged:
    * <ul>
@@ -57,6 +58,7 @@ class SpecificationMerger {
     thisOne.cookieAssertions.addAll(with.cookieAssertions)
     thisOne.expectedStatusCode = with.expectedStatusCode
     thisOne.expectedStatusLine = with.expectedStatusLine
+    thisOne.expectedResponseTime = with.expectedResponseTime
     thisOne.headerAssertions.addAll(with.headerAssertions)
   }
 
@@ -95,7 +97,7 @@ class SpecificationMerger {
     thisOne.requestParameters.putAll(with.requestParameters)
     thisOne.queryParameters.putAll(with.queryParams)
     thisOne.formParameters.putAll(with.formParams)
-    thisOne.pathParameters.putAll(with.pathParams)
+    thisOne.namedPathParameters.putAll(with.pathParams)
     thisOne.multiParts.addAll(with.multiParts)
     thisOne.authenticationScheme = with.authenticationScheme
     mergeSessionId(thisOne, with)
@@ -104,6 +106,10 @@ class SpecificationMerger {
     mergeFilters(thisOne, with)
     thisOne.urlEncodingEnabled = with.urlEncodingEnabled
     thisOne.proxySpecification = with.proxySpecification
+    thisOne.method = with.method
+    thisOne.unnamedPathParamsTuples = with.unnamedPathParamValues
+    thisOne.path = with.path
+
     mergeConfig(thisOne, with)
     // It's important that headers are merged after the configs are merged since HeaderConfig affects that way headers are merged.
     thisOne.headers(with.requestHeaders)

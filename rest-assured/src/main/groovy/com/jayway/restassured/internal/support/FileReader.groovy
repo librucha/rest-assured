@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 the original author or authors.
+ * Copyright 2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-package com.jayway.restassured.internal.assertion
+package com.jayway.restassured.internal.support
 
-/**
- * A {@link PathFragmentEscaper} that escapes the path fragment with <code>getAt('<fragment>')</code>
- */
-abstract class GetPathFragmentEscaper implements PathFragmentEscaper {
 
-  @Override
-  String escape(String pathFragment) {
-    return "getAt('" + pathFragment + "')"
+class FileReader {
+
+  def static String readToString(File file, String charset) {
+    file.getText(charset)
   }
 }

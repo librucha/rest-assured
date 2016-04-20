@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,20 @@
  * limitations under the License.
  */
 
-package com.jayway.restassured.internal;
-
-import com.jayway.restassured.internal.http.HTTPBuilder;
+package com.jayway.restassured.http;
 
 /**
- * The key store specification
+ * Enumeration of valid HTTP methods that may be used in REST Assured.
+ *
+ * @author Johan Haleby
  */
-public interface KeystoreSpec {
-
-    /**
-     * Apply the settings
-
-     * @param builder The http builder
-     * @param port The port
-     */
-   void apply(HTTPBuilder builder, int port);
-
+public enum Method {
+    GET,
+    PUT,
+    POST,
+    DELETE,
+    HEAD,
+    TRACE,
+    OPTIONS,
+    PATCH
 }

@@ -1,5 +1,84 @@
-Change log next version
+Change log next release
 -----------------------
+* Upgrading scribe dependencies to latest version 2.4.0 (thanks to Aniket for pull request)
+* Added ability to specify an empty access token for OAuth1 authentication. Use com.jayway.restassured.config.OAuthConfig#addEmptyTokenToBaseString(boolean) to configure this.
+* Allow to specify -1 as Cookie Max-Age in accordance with RFC 6265 (https://tools.ietf.org/html/rfc6265#page-20). Thanks to Timofey Dmitriev for pull request (issue 580).
+* com.jayway.restassured.builder.RequestSpecBuilder#addMultiPart(MultiPartSpecification) is now public (issue 669)
+* Support for setting session attributes in the Spring MockMvc module using the "sessionAttr" and "sessionAttrs" methods (thanks to sneyyar for pull request) (issue 671)
+* It's now possible to map to java objects when extracting from a list in JsonPath. For example JsonPath.from(json).getList("store.books", Book.class).
+* Added CookieFilter (com.jayway.restassured.filter.cookie.CookieFilter).  The cookie filter can be used to keep track of all the cookies sent by the server and use
+  them in subsequent requests.  It might come in handy when more than just com.jayway.restassured.filter.session.SessionFilter is needed. (thanks to Ranil Wijeyratne for pull request)
+* It's now possible to pass a File to the body/content method of the RequestSpecification when content-type is set to JSON, XML or TEXT. The contents of this will
+  be sent to the server (issue 674)
+* Fixed an issue where the Jackson and Jackson2 (Faster Jackson) object mappers didn't fully took charset into account when serializing POJO to String (issue 677).
+
+Change log 2.9.0 (2016-03-04)
+-----------------------------
+* Added support for composing a Hamcrest matcher with a ResponseAwareMatcher when using a ResponseAwareMatcherComposer
+* Automatically escapes JsonPath and XmlPath fragments that contains a hyphen and an index lookup operator. For example consider the following JSON document:
+    { "some-list" : ["one", "two"] }
+  Previously you had to escape "some-list" manually if you wanted to get first element out of the list:
+    JsonPath jsonPath = ...
+    String firstElement = jsonPath.getString("'some-list'[0]"); // one
+  Now no explicit escaping is necessary:
+    String firstElement = jsonPath.getString("some-list[0]"); // one
+  But this means that if you previously had a JSON document like this:
+    { "some-list[0]" : ["one", "two"] }
+  you would now have to escape it:
+    String firstElement = jsonPath.getString("'some-list[0]'[0]"); // one
+  which makes this an (unlikely but still) non-backward compatible change (issue 564).
+* Added support for multipart DELETE requests (issue 634)
+* It's now possible to use empty and whitespace path parameters (issue 631)
+* Replace deprecated HttpEntity.consume with EntityUtils.consume to fix problems with connections not closing properly (issue 633) (thanks to Marin Dzhigarov and Julian Engelhardt for help and PR)
+* Fixing NullPointerException for GET requests with an empty body (issue 642)
+* Form authentication for fully-qualified URIs now uses the URI specified in the request instead of just localhost (issue 641)
+* Improve escaping for XmlPath's containing colon. For example you can now do like this without manually having to escape anything in the path: "x:something.x:y[0]" (issue 647)
+* Getting an attribute value from an XmlPath expression that doesn't exists now returns null instead of an empty list (issue 650).
+* Deprecated com.jayway.restassured.config.SSLConfig#getPassword, use com.jayway.restassured.config.SSLConfig#getKeyStorePassword instead
+* Major improvements of certificate authentication. You can now use a keystore (without trust store) and a keystore and trust store at the same time.
+* Non-backward compatible change: keystore was previously used as a truststore. You must change "given().keystore(..)" to "given().trustStore(..)", "RestAssured.keystore(..)" to "RestAssured.trustStore(..)" and "SSLConfig.keystore(..)" to "SSLConfig.trustStore(..)". Sorry!
+
+Change log 2.8.0 (2015-12-18)
+-----------------------------
+* Modify HttpClientConfig so parameter methods respect previous configuration (issue 612). Thanks to Adam Clarkson for pull request.
+* Fixed issue that caused filter context properties to be removed between filter invocations
+* Added support for measuring time. For example:
+    long timeInMs = get("/lotto").time()
+  or using a specific time unit:
+    long timeInSeconds = get("/lotto").timeIn(SECONDS);
+  where "SECONDS" is just a standard TimeUnit. You can also validate it using the validation DSL:
+    when().
+            get("/lotto").
+    then().
+            time(lessThan(2000L)); // Milliseconds
+  or
+    when().
+            get("/lotto").
+    then().
+            time(lessThan(2L), SECONDS);
+  Please note that response time measurement should be performed when the JVM is hot! (i.e. running a response time measurement when only running a single test will yield erroneous results)
+  This is also implemented in the Spring MockMvc module (issue 493)
+* Deprecated: com.jayway.restassured.filter.FilterContext#getRequestMethod, use com.jayway.restassured.specification.FilterableRequestSpecification#getMethod instead.
+* Deprecated: com.jayway.restassured.filter.FilterContext#getRequestPath, use com.jayway.restassured.specification.FilterableRequestSpecification#getUserDefinedPath instead.
+* Deprecated: com.jayway.restassured.filter.FilterContext#getRequestURI, use com.jayway.restassured.specification.FilterableRequestSpecification#getURI instead.
+* Deprecated: com.jayway.restassured.filter.FilterContext#getOriginalRequestPath, use com.jayway.restassured.specification.FilterableRequestSpecification#getUserDefinedPath instead.
+* Deprecated: com.jayway.restassured.specification.FilterableRequestSpecification#getRequestContentType, use com.jayway.restassured.specification.FilterableRequestSpecification#getContentType instead.
+* Added com.jayway.restassured.http.Method enum that represents the various HTTP methods that may be used in REST Assured
+* Added getUnnamedPathParams method to com.jayway.restassured.specification.FilterableRequestSpecification which returns all unnamed path parameters
+* Added getUnnamedPathParamValues method to com.jayway.restassured.specification.FilterableRequestSpecification which returns all unnamed path parameter values
+* Added getNamedPathParams method to com.jayway.restassured.specification.FilterableRequestSpecification which returns all named path parameters
+* Non-backward compatible change: com.jayway.restassured.specification.FilterableRequestSpecification#getPathParams now returns both unnamed and named path parameters (before only named parameters were returned).
+* com.jayway.restassured.specification.FilterableRequestSpecification#getQueryParams, getRequestParams, getFormParams and getPathParams now returns a Map of String -> String whereas before they returned a Map of String -> Object.
+* It's now possible to change the request path from a filter, use the "path" method in the "requestSpec" (com.jayway.restassured.specification.FilterableRequestSpecification#path).
+* You can now specify both named and unnamed path params at the same time
+* Added ability to remove parameters from the FilterableRequestSpecification. Use the remove methods such as "removeQueryParam".
+* Better error messages when unnamed path parameters are null.
+* Slightly improved logging in Spring MockMvc module
+* Removed the use of StandardCharset from DecoderConfig which prevented EncoderConfig to be used on Java 6 and older.
+* Multipart patch no longer produces an exception on a call that returns status other than 200 (issue 615)
+
+Change log 2.7.0 (2015-10-31)
+-----------------------------
 * Significantly reduce sized of scala-support distribution package
 * Removed the use of StandardCharset from EncoderConfig which prevented EncoderConfig to be used on Java 6 and older.
 * Added support for sending a request body in a GET request (issue 544). Thanks to Manuel Möhlmann for pull request.
@@ -21,6 +100,7 @@ Change log next version
 * Added support for specifying preemptive basic authentication for proxies. For example:
     given().proxy(auth("username", "password")).when() ..
   where "auth" is statically imported from com.jayway.restassured.specification.ProxySpecification (issue 597).
+* Added getUUID method to JsonPath and XmlPath (thanks to Libor Ondrušek for the pull request)
 
 Change log 2.6.0 (2015-10-09)
 -----------------------------

@@ -272,6 +272,12 @@ class ScalatraRestExample extends ScalatraServlet {
     "{ \"list\" : \""+findMultiParamIn(request.body, "list").mkString(",") +"\" }"
   }
 
+  patch("/jsonGreet") {
+      contentType = "application/json"
+      val json = JsonParser.parse(request.body)
+      "{ \"fullName\" : \"" + (json \ "firstName").extract[String] + " "+ (json \ "lastName").extract[String] + "\" }"
+  }
+
   get("/hello") {
     val json = ("hello" -> "Hello Scalatra")
     compact(render(json))
@@ -364,6 +370,15 @@ class ScalatraRestExample extends ScalatraServlet {
     val lastName = {params("lastName")}
     val fullName: String = firstName + " " + lastName
     val json = ("firstName" -> firstName) ~ ("lastName" -> lastName) ~ ("fullName" -> fullName)
+    compact(render(json))
+
+  }
+
+  get("/:firstName/:middleName/:lastName") {
+    val firstName = {params("firstName")}
+    val middleName = {params("middleName")}
+    val lastName = {params("lastName")}
+    val json = ("firstName" -> firstName) ~ ("lastName" -> lastName) ~ ("middleName" -> middleName)
     compact(render(json))
 
   }

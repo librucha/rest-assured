@@ -198,6 +198,255 @@ public class FilterITest extends WithJetty {
                 body("fullName", equalTo("John Doe"));
     }
 
+    @Test public void
+    can_add_query_params_from_filter() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    requestSpec.queryParam("firstName", "John");
+                    requestSpec.queryParam("lastName", "Doe");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/greetJSON").
+        then().
+                statusCode(200).
+                root("greeting").
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe"));
+    }
+
+
+    @Test public void
+    can_change_path_from_filter() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    requestSpec.path("/lotto");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/greetJSON").
+        then().
+                statusCode(200).
+                body("lotto.lottoId", is(5));
+    }
+
+    @Test public void
+    can_change_path_parameters_from_filter() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getNamedPathParams().size(), is(0));
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders(), contains("firstName", "lastName"));
+                    requestSpec.pathParam("firstName", "John");
+                    requestSpec.pathParam("lastName", "Doe");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+    @Test public void
+    can_change_partially_applied_named_path_parameters_from_filter() {
+        given().
+                pathParam("lastName", "Doe").
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getNamedPathParams().size(), is(1));
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders(), contains("firstName"));
+                    requestSpec.pathParam("firstName", "John");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+    @Test public void
+    can_change_partially_applied_unnamed_path_parameters_from_filter() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getNamedPathParams().size(), is(0));
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders(), contains("lastName"));
+                    requestSpec.pathParam("lastName", "Doe");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+
+    @Test public void
+    can_change_unnamed_path_param_with_named_path_param_from_filter() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    requestSpec.pathParam("lastName", "Doe");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John", "Doe2").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Test public void
+    can_change_named_path_param_with_named_path_param_from_filter() {
+        given().
+                pathParam("lastName", "Doe").
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders().size(), is(0));
+                    assertThat(requestSpec.getPathParamPlaceholders(), contains("firstName", "lastName"));
+                    requestSpec.pathParam("firstName", "John");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John2").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+    @Test public void
+    can_change_unnamed_path_param_with_named_path_param_from_filter_when_path_param_is_used_in_several_places() {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    requestSpec.pathParam("name", "John");
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders().size(), is(0));
+                    assertThat(requestSpec.getPathParamPlaceholders(), contains("name"));
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{name}/{name}", "John2").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("John")).
+                body("fullName", equalTo("John John"));
+    }
+
+    @SuppressWarnings("Duplicates")
+    @Test public void
+    can_change_named_path_param_with_named_path_param_from_filter_when_path_param_is_used_in_several_places() {
+        given().
+                pathParam("name", "John2").
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getUndefinedPathParamPlaceholders().size(), is(0));
+                    assertThat(requestSpec.getPathParamPlaceholders(), contains("name"));
+                    requestSpec.pathParam("name", "John");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{name}/{name}").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("John")).
+                body("fullName", equalTo("John John"));
+    }
+
+    @Test public void
+    primitive_params_are_converted_to_strings() {
+        given().
+                queryParam("something", 1).
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getQueryParams().get("something"), equalTo("1"));
+                    return new ResponseBuilder().setStatusCode(200).build();
+                }).
+        when().
+                get("/somewhere", "Doe");
+    }
+
+    @Test public void
+    get_path_params_in_request_spec_returns_both_named_and_unnamed_path_params()  {
+        given().
+                pathParam("firstName", "John").
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getPathParams(), allOf(hasEntry("firstName", "John"), not(hasEntry("lastName", "Doe"))));
+                    assertThat(requestSpec.getPathParams().size(), is(2));
+                    requestSpec.pathParam("lastName", "Something");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John2").
+        then().
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Something")).
+                body("fullName", equalTo("John Something"));
+    }
+
+    @Test public void
+    can_remove_unnamed_path_parameter_by_value_from_filter() throws Exception {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("John", "Doe", "Real Name"));
+                    requestSpec.removeUnnamedPathParamByValue("Real Name");
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("John", "Doe"));
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John", "Doe", "Real Name").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John Doe"));
+    }
+
+    @Test public void
+    can_remove_unnamed_path_parameter_by_name_from_filter() throws Exception {
+        given().
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("John", "Doe"));
+                    requestSpec.removeUnnamedPathParam("firstName");
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("Doe"));
+                    requestSpec.pathParam("firstName", "John2");
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John", "Doe").
+        then().
+                statusCode(200).
+                body("firstName", equalTo("John2")).
+                body("lastName", equalTo("Doe")).
+                body("fullName", equalTo("John2 Doe"));
+    }
+
+    @Test public void
+    can_remove_both_unnamed_and_named_path_parameter_from_filter_and_order_is_maintained() throws Exception {
+        exception.expect(IllegalArgumentException.class);
+        exception.expectMessage("Path parameters were not correctly defined. Redundant path parameters are: John3, Doe.");
+
+        given().
+                pathParam("firstName", "John2").
+                filter((requestSpec, responseSpec, ctx) -> {
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("John", "John3", "Doe"));
+                    requestSpec.removePathParam("firstName");
+                    requestSpec.removePathParam("lastName");
+                    assertThat(requestSpec.getUnnamedPathParamValues(), contains("John3", "Doe"));
+                    assertThat(requestSpec.getNamedPathParams().isEmpty(), is(true));
+                    return ctx.next(requestSpec, responseSpec);
+                }).
+        when().
+                get("/{firstName}/{lastName}", "John", "John3", "Doe");
+    }
+
     public static class CountingFilter implements Filter {
 
         public int counter = 0;

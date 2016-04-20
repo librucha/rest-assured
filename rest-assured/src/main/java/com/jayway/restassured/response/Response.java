@@ -35,6 +35,4 @@ package com.jayway.restassured.response;
  * </p>
  */
 public interface Response extends ResponseBody<Response>, ResponseOptions<Response>, Validatable<ValidatableResponse, Response> {
-
-
 }
